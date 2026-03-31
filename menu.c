@@ -16,6 +16,52 @@ static void list_patients(Database *db) {
     if (count == 30) printf("...仅显示前30条...\n");
 }
 
+
+static int patient_has_related_records(Database *db, int patientId) {
+    Registration *r;
+    Exam *e;
+    Inpatient *ip;
+    for (r = db->registrations; r; r = r->next) if (r->patientId == patientId) return 1;
+    for (e = db->exams; e; e = e->next) if (e->patientId == patientId) return 1;
+    for (ip = db->inpatients; ip; ip = ip->next) if (ip->patientId == patientId) return 1;
+    return 0;
+}
+
+static void delete_patient(Database *db, const char *dataDir) {
+    int id = read_int("要删除的患者病历号: ", 1, 1000000);
+    Patient *prev = NULL;
+    Patient *cur = db->patients;
+    char confirm[16];
+
+    while (cur && cur->id != id) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    if (!cur) {
+        printf("患者不存在。\n");
+        return;
+    }
+
+    if (patient_has_related_records(db, id)) {
+        printf("删除失败：该患者存在挂号/检查/住院关联记录，请先处理关联数据。\n");
+        return;
+    }
+
+    printf("确认删除患者[%d] %s ? (y/n): ", cur->id, cur->name);
+    read_line(NULL, confirm, sizeof(confirm));
+    if (!(confirm[0] == 'y' || confirm[0] == 'Y')) {
+        printf("已取消删除。\n");
+        return;
+    }
+
+    if (prev) prev->next = cur->next;
+    else db->patients = cur->next;
+    free(cur);
+    save_all(db, dataDir);
+    printf("删除成功。\n");
+}
+
 static void add_patient(Database *db, const char *dataDir) {
     Patient *p = (Patient*)malloc(sizeof(Patient));
     p->id = next_patient_id(db);
@@ -208,27 +254,29 @@ void main_menu(Database *db, const char *dataDir) {
         printf("==============================\n");
         printf("1. 查看患者列表\n");
         printf("2. 新增患者\n");
-        printf("3. 新增挂号记录\n");
-        printf("4. 新增看诊记录\n");
-        printf("5. 新增检查记录\n");
-        printf("6. 新增住院记录\n");
-        printf("7. 药品出入库\n");
-        printf("8. 患者视角查询\n");
-        printf("9. 医护视角查询\n");
-        printf("10. 管理视角报表\n");
+        printf("3. 删除患者\n");
+        printf("4. 新增挂号记录\n");
+        printf("5. 新增看诊记录\n");
+        printf("6. 新增检查记录\n");
+        printf("7. 新增住院记录\n");
+        printf("8. 药品出入库\n");
+        printf("9. 患者视角查询\n");
+        printf("10. 医护视角查询\n");
+        printf("11. 管理视角报表\n");
         printf("0. 保存并退出\n");
-        choice = read_int("请选择: ", 0, 10);
+        choice = read_int("请选择: ", 0, 11);
         switch (choice) {
             case 1: list_patients(db); pause_and_wait(); break;
             case 2: add_patient(db, dataDir); pause_and_wait(); break;
-            case 3: add_registration(db, dataDir); pause_and_wait(); break;
-            case 4: add_visit(db, dataDir); pause_and_wait(); break;
-            case 5: add_exam(db, dataDir); pause_and_wait(); break;
-            case 6: add_inpatient(db, dataDir); pause_and_wait(); break;
-            case 7: drug_inout(db, dataDir); pause_and_wait(); break;
-            case 8: patient_report(db); pause_and_wait(); break;
-            case 9: doctor_report(db); pause_and_wait(); break;
-            case 10: management_report(db); pause_and_wait(); break;
+            case 3: delete_patient(db, dataDir); pause_and_wait(); break;
+            case 4: add_registration(db, dataDir); pause_and_wait(); break;
+            case 5: add_visit(db, dataDir); pause_and_wait(); break;
+            case 6: add_exam(db, dataDir); pause_and_wait(); break;
+            case 7: add_inpatient(db, dataDir); pause_and_wait(); break;
+            case 8: drug_inout(db, dataDir); pause_and_wait(); break;
+            case 9: patient_report(db); pause_and_wait(); break;
+            case 10: doctor_report(db); pause_and_wait(); break;
+            case 11: management_report(db); pause_and_wait(); break;
             case 0: save_all(db, dataDir); printf("数据已保存。\n"); return;
         }
     }
