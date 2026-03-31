@@ -1,0 +1,235 @@
+#include "menu.h"
+
+static int count_patients(Database *db) { int c=0; Patient *p=db->patients; while(p){c++;p=p->next;} return c; }
+static int count_doctors(Database *db) { int c=0; Doctor *p=db->doctors; while(p){c++;p=p->next;} return c; }
+static int count_regs(Database *db) { int c=0; Registration *p=db->registrations; while(p){c++;p=p->next;} return c; }
+static int count_inpatients(Database *db) { int c=0; Inpatient *p=db->inpatients; while(p){c++;p=p->next;} return c; }
+static int count_drugs(Database *db) { int c=0; Drug *p=db->drugs; while(p){c++;p=p->next;} return c; }
+
+static void list_patients(Database *db) {
+    Patient *p = db->patients; int count = 0;
+    printf("\n%-6s %-12s %-6s %-12s %-14s %-10s\n", "病历号", "姓名", "性别", "出生日期", "联系方式", "医保");
+    while (p && count < 30) {
+        printf("%-6d %-12s %-6s %-12s %-14s %-10s\n", p->id, p->name, p->gender, p->birth, p->phone, p->insurance);
+        p = p->next; count++;
+    }
+    if (count == 30) printf("...仅显示前30条...\n");
+}
+
+static void add_patient(Database *db, const char *dataDir) {
+    Patient *p = (Patient*)malloc(sizeof(Patient));
+    p->id = next_patient_id(db);
+    read_line("姓名: ", p->name, sizeof(p->name));
+    read_line("性别: ", p->gender, sizeof(p->gender));
+    read_line("出生日期(YYYY-MM-DD): ", p->birth, sizeof(p->birth));
+    read_line("联系方式: ", p->phone, sizeof(p->phone));
+    read_line("医保类型: ", p->insurance, sizeof(p->insurance));
+    p->archived = 0;
+    p->next = NULL;
+    if (!db->patients) db->patients = p; else { Patient *q = db->patients; while (q->next) q = q->next; q->next = p; }
+    save_all(db, dataDir);
+    printf("添加成功，病历号=%d\n", p->id);
+}
+
+static int count_patient_regs_same_day_dept(Database *db, int patientId, const char *date, const char *dept) {
+    int cnt = 0; Registration *r = db->registrations;
+    while (r) { if (r->patientId == patientId && strcmp(r->date, date) == 0 && strcmp(r->dept, dept) == 0) cnt++; r = r->next; }
+    return cnt;
+}
+static int count_patient_regs_same_day(Database *db, int patientId, const char *date) {
+    int cnt = 0; Registration *r = db->registrations;
+    while (r) { if (r->patientId == patientId && strcmp(r->date, date) == 0) cnt++; r = r->next; }
+    return cnt;
+}
+
+static void add_registration(Database *db, const char *dataDir) {
+    Registration *r;
+    int patientId = read_int("患者病历号: ", 1, 1000000);
+    int doctorId = read_int("医生工号: ", 1, 1000000);
+    char dept[SMALL_LEN], date[DATE_LEN], type[SMALL_LEN];
+    if (!find_patient(db, patientId)) { printf("患者不存在。\n"); return; }
+    if (!find_doctor(db, doctorId)) { printf("医生不存在。\n"); return; }
+    read_line("科室: ", dept, sizeof(dept));
+    read_line("挂号日期(YYYY-MM-DD): ", date, sizeof(date));
+    read_line("挂号类型(普通/专家): ", type, sizeof(type));
+    if (count_patient_regs_same_day_dept(db, patientId, date, dept) >= 1) { printf("同一患者同一天同一科室最多挂号1次。\n"); return; }
+    if (count_patient_regs_same_day(db, patientId, date) >= 3) { printf("同一患者同一天最多挂号3次。\n"); return; }
+    r = (Registration*)malloc(sizeof(Registration));
+    r->id = next_registration_id(db);
+    r->patientId = patientId;
+    r->doctorId = doctorId;
+    strcpy(r->dept, dept);
+    strcpy(r->date, date);
+    strcpy(r->type, type);
+    strcpy(r->status, "未就诊");
+    r->next = NULL;
+    if (!db->registrations) db->registrations = r; else { Registration *q = db->registrations; while (q->next) q = q->next; q->next = r; }
+    save_all(db, dataDir);
+    printf("挂号成功，挂号编号=%d\n", r->id);
+}
+
+static void add_visit(Database *db, const char *dataDir) {
+    int regId = read_int("挂号编号: ", 1, 1000000);
+    Registration *r = find_registration(db, regId);
+    Visit *v;
+    if (!r) { printf("挂号记录不存在。\n"); return; }
+    v = (Visit*)malloc(sizeof(Visit));
+    v->id = next_visit_id(db);
+    v->regId = regId;
+    read_line("诊断结果: ", v->diagnosis, sizeof(v->diagnosis));
+    read_line("检查项目: ", v->examItems, sizeof(v->examItems));
+    read_line("处方信息: ", v->prescription, sizeof(v->prescription));
+    v->next = NULL;
+    if (!db->visits) db->visits = v; else { Visit *q = db->visits; while (q->next) q = q->next; q->next = v; }
+    strcpy(r->status, "已就诊");
+    save_all(db, dataDir);
+    printf("看诊记录已添加。\n");
+}
+
+static void add_exam(Database *db, const char *dataDir) {
+    Exam *e = (Exam*)malloc(sizeof(Exam));
+    e->id = next_exam_id(db);
+    e->patientId = read_int("患者病历号: ", 1, 1000000);
+    e->doctorId = read_int("医生工号: ", 1, 1000000);
+    if (!find_patient(db, e->patientId) || !find_doctor(db, e->doctorId)) { printf("患者或医生不存在。\n"); free(e); return; }
+    read_line("检查编码: ", e->code, sizeof(e->code));
+    read_line("检查项目名称: ", e->itemName, sizeof(e->itemName));
+    read_line("执行时间: ", e->execTime, sizeof(e->execTime));
+    { char feeBuf[64]; read_line("检查费用: ", feeBuf, sizeof(feeBuf)); e->fee = atof(feeBuf); }
+    read_line("检查结果: ", e->result, sizeof(e->result));
+    e->next = NULL;
+    if (!db->exams) db->exams = e; else { Exam *q = db->exams; while (q->next) q = q->next; q->next = e; }
+    save_all(db, dataDir);
+    printf("检查记录已添加。\n");
+}
+
+static void add_inpatient(Database *db, const char *dataDir) {
+    Inpatient *ip = (Inpatient*)malloc(sizeof(Inpatient));
+    Ward *w;
+    ip->id = next_inpatient_id(db);
+    ip->patientId = read_int("患者病历号: ", 1, 1000000);
+    ip->wardId = read_int("病房编号: ", 1, 1000000);
+    ip->bedNo = read_int("床位号: ", 1, 1000);
+    read_line("入院时间: ", ip->admitDate, sizeof(ip->admitDate));
+    read_line("预计出院时间: ", ip->expectedDischarge, sizeof(ip->expectedDischarge));
+    { char buf[64]; read_line("预估住院费用: ", buf, sizeof(buf)); ip->totalCost = atof(buf); }
+    if (!find_patient(db, ip->patientId)) { printf("患者不存在。\n"); free(ip); return; }
+    w = find_ward(db, ip->wardId);
+    if (!w) { printf("病房不存在。\n"); free(ip); return; }
+    if (w->occupiedBeds + w->maintenanceBeds >= w->bedCount) { printf("病房没有空闲床位。\n"); free(ip); return; }
+    w->occupiedBeds++;
+    ip->next = NULL;
+    if (!db->inpatients) db->inpatients = ip; else { Inpatient *q = db->inpatients; while (q->next) q = q->next; q->next = ip; }
+    save_all(db, dataDir);
+    printf("住院登记成功，编号=%d\n", ip->id);
+}
+
+static void drug_inout(Database *db, const char *dataDir) {
+    int drugId = read_int("药品编号: ", 1, 1000000);
+    Drug *d = find_drug(db, drugId);
+    DrugLog *l;
+    char op[SMALL_LEN];
+    int qty;
+    if (!d) { printf("药品不存在。\n"); return; }
+    read_line("操作类型(入库/出库): ", op, sizeof(op));
+    qty = read_int("数量: ", 1, 1000000);
+    if (strcmp(op, "出库") == 0 && d->stock < qty) { printf("库存不足。\n"); return; }
+    if (strcmp(op, "出库") == 0) d->stock -= qty; else d->stock += qty;
+    l = (DrugLog*)malloc(sizeof(DrugLog));
+    l->id = next_druglog_id(db);
+    l->drugId = drugId;
+    strcpy(l->operation, op);
+    l->quantity = qty;
+    read_line("操作人: ", l->operatorName, sizeof(l->operatorName));
+    read_line("日期: ", l->date, sizeof(l->date));
+    l->next = NULL;
+    if (!db->drugLogs) db->drugLogs = l; else { DrugLog *q = db->drugLogs; while (q->next) q = q->next; q->next = l; }
+    save_all(db, dataDir);
+    printf("操作成功，当前库存=%d\n", d->stock);
+}
+
+static void patient_report(Database *db) {
+    int pid = read_int("输入患者病历号: ", 1, 1000000);
+    Patient *p = find_patient(db, pid);
+    Registration *r;
+    Exam *e;
+    Inpatient *ip;
+    if (!p) { printf("患者不存在。\n"); return; }
+    printf("\n患者: %s(%d) %s %s %s %s\n", p->name, p->id, p->gender, p->birth, p->phone, p->insurance);
+    printf("挂号记录:\n");
+    for (r = db->registrations; r; r = r->next) if (r->patientId == pid) printf("  [%d] %s %s 医生%d %s %s\n", r->id, r->date, r->dept, r->doctorId, r->type, r->status);
+    printf("检查记录:\n");
+    for (e = db->exams; e; e = e->next) if (e->patientId == pid) printf("  [%d] %s %s %.2f %s\n", e->id, e->code, e->itemName, e->fee, e->result);
+    printf("住院记录:\n");
+    for (ip = db->inpatients; ip; ip = ip->next) if (ip->patientId == pid) printf("  [%d] 病房%d 床位%d %s ~ %s 费用%.2f\n", ip->id, ip->wardId, ip->bedNo, ip->admitDate, ip->expectedDischarge, ip->totalCost);
+}
+
+static void doctor_report(Database *db) {
+    int did = read_int("输入医生工号: ", 1, 1000000);
+    Doctor *d = find_doctor(db, did);
+    Registration *r; int count = 0;
+    if (!d) { printf("医生不存在。\n"); return; }
+    printf("\n医生: %s(%d) %s %s\n", d->name, d->id, d->dept, d->title);
+    for (r = db->registrations; r; r = r->next) {
+        if (r->doctorId == did) {
+            printf("  挂号[%d] 患者%d %s %s %s\n", r->id, r->patientId, r->date, r->type, r->status);
+            count++;
+        }
+    }
+    printf("总接诊/挂号关联数量: %d\n", count);
+}
+
+static void management_report(Database *db) {
+    Ward *w; Drug *d; Inpatient *ip; Exam *e;
+    double wardRate, inpatientIncome = 0, examIncome = 0;
+    int totalBeds = 0, usedBeds = 0;
+    for (w = db->wards; w; w = w->next) { totalBeds += w->bedCount; usedBeds += w->occupiedBeds; }
+    for (ip = db->inpatients; ip; ip = ip->next) inpatientIncome += ip->totalCost;
+    for (e = db->exams; e; e = e->next) examIncome += e->fee;
+    wardRate = totalBeds ? (usedBeds * 100.0 / totalBeds) : 0;
+    printf("\n=== 管理视角报表 ===\n");
+    printf("患者总数: %d\n", count_patients(db));
+    printf("医生总数: %d\n", count_doctors(db));
+    printf("挂号记录总数: %d\n", count_regs(db));
+    printf("住院人数: %d\n", count_inpatients(db));
+    printf("药品种类: %d\n", count_drugs(db));
+    printf("床位利用率: %.2f%%\n", wardRate);
+    printf("住院费用汇总: %.2f\n", inpatientIncome);
+    printf("检查费用汇总: %.2f\n", examIncome);
+    printf("药品库存盘点(前10条):\n");
+    { int cnt = 0; for (d = db->drugs; d && cnt < 10; d = d->next, cnt++) printf("  药品[%d] %s/%s 库存=%d 单价=%.2f 科室=%s\n", d->id, d->genericName, d->brandName, d->stock, d->price, d->dept); }
+}
+
+void main_menu(Database *db, const char *dataDir) {
+    int choice;
+    while (1) {
+        printf("\n==============================\n");
+        printf("  医疗综合管理系统 HIS\n");
+        printf("==============================\n");
+        printf("1. 查看患者列表\n");
+        printf("2. 新增患者\n");
+        printf("3. 新增挂号记录\n");
+        printf("4. 新增看诊记录\n");
+        printf("5. 新增检查记录\n");
+        printf("6. 新增住院记录\n");
+        printf("7. 药品出入库\n");
+        printf("8. 患者视角查询\n");
+        printf("9. 医护视角查询\n");
+        printf("10. 管理视角报表\n");
+        printf("0. 保存并退出\n");
+        choice = read_int("请选择: ", 0, 10);
+        switch (choice) {
+            case 1: list_patients(db); pause_and_wait(); break;
+            case 2: add_patient(db, dataDir); pause_and_wait(); break;
+            case 3: add_registration(db, dataDir); pause_and_wait(); break;
+            case 4: add_visit(db, dataDir); pause_and_wait(); break;
+            case 5: add_exam(db, dataDir); pause_and_wait(); break;
+            case 6: add_inpatient(db, dataDir); pause_and_wait(); break;
+            case 7: drug_inout(db, dataDir); pause_and_wait(); break;
+            case 8: patient_report(db); pause_and_wait(); break;
+            case 9: doctor_report(db); pause_and_wait(); break;
+            case 10: management_report(db); pause_and_wait(); break;
+            case 0: save_all(db, dataDir); printf("数据已保存。\n"); return;
+        }
+    }
+}
