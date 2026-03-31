@@ -7,13 +7,12 @@ static int count_inpatients(Database *db) { int c=0; Inpatient *p=db->inpatients
 static int count_drugs(Database *db) { int c=0; Drug *p=db->drugs; while(p){c++;p=p->next;} return c; }
 
 static void list_patients(Database *db) {
-    Patient *p = db->patients; int count = 0;
+    Patient *p = db->patients;
     printf("\n%-6s %-12s %-6s %-12s %-14s %-10s\n", "病历号", "姓名", "性别", "出生日期", "联系方式", "医保");
-    while (p && count < 30) {
+    while (p) {
         printf("%-6d %-12s %-6s %-12s %-14s %-10s\n", p->id, p->name, p->gender, p->birth, p->phone, p->insurance);
-        p = p->next; count++;
+        p = p->next;
     }
-    if (count == 30) printf("...仅显示前30条...\n");
 }
 
 
@@ -242,8 +241,8 @@ static void management_report(Database *db) {
     printf("床位利用率: %.2f%%\n", wardRate);
     printf("住院费用汇总: %.2f\n", inpatientIncome);
     printf("检查费用汇总: %.2f\n", examIncome);
-    printf("药品库存盘点(前10条):\n");
-    { int cnt = 0; for (d = db->drugs; d && cnt < 10; d = d->next, cnt++) printf("  药品[%d] %s/%s 库存=%d 单价=%.2f 科室=%s\n", d->id, d->genericName, d->brandName, d->stock, d->price, d->dept); }
+    printf("药品库存盘点(全部):\n");
+    for (d = db->drugs; d; d = d->next) printf("  药品[%d] %s/%s 库存=%d 单价=%.2f 科室=%s\n", d->id, d->genericName, d->brandName, d->stock, d->price, d->dept);
 }
 
 void main_menu(Database *db, const char *dataDir) {
