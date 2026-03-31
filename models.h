@@ -112,5 +112,22 @@ typedef struct Database {
 
 void init_database(Database *db);
 void free_database(Database *db);
+Patient *find_patient(Database *db, int id);
+Doctor *find_doctor(Database *db, int id);
+Registration *find_registration(Database *db, int id);
+Ward *find_ward(Database *db, int id);
+Drug *find_drug(Database *db, int id);
+int next_patient_id(Database *db);
+int next_doctor_id(Database *db);
+int next_registration_id(Database *db);
+int next_visit_id(Database *db);
+int next_exam_id(Database *db);
+int next_ward_id(Database *db);
+int next_inpatient_id(Database *db);
+int next_drug_id(Database *db);
+int next_druglog_id(Database *db);
+int load_all(Database *db, const char *dir);
+int save_all(Database *db, const char *dir);
+void ensure_seed_data(Database *db);
 
 #endif

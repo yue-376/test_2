@@ -16,28 +16,45 @@
 10. 姓名可重名，通过病历号/工号/药品ID区分
 
 三、目录结构
-src/   源代码
-data/  数据文件（首次运行会自动生成）
+当前仓库使用“单层目录”，不是 src/data 分层：
+*.c / *.h        源代码
+*.txt            数据文件（程序启动时自动读取，退出时自动保存）
 
 四、在 Visual Studio 中编译
 1. 打开 Visual Studio
 2. 创建“空项目（C）”
-3. 把 src 下所有 .c 和 .h 文件加入项目
+3. 把当前目录下所有 .c 和 .h 文件加入项目
 4. 右键项目 -> 属性 -> C/C++ -> 高级 -> 编译为 -> 选择“编译为 C 代码(/TC)”
-5. 设置工作目录为 src（或把 data 目录放到 main.exe 上一级目录）
+5. 设置工作目录为项目根目录（即 txt 数据文件所在目录）
 6. 生成项目
-7. 运行后程序会自动读取 ../data 下的 txt 文件
+7. 运行后程序会自动读取当前目录下的 txt 文件
 
 五、如果你想直接在 gcc 下编译（当前容器已验证）
-gcc src/main.c src/common.c src/models.c src/data.c src/menu.c -o his
+gcc -Wall -Wextra -std=c11 *.c -o his
 
-六、说明
+六、在 CodeSpace 中运行（推荐）
+1. 打开终端（Terminal）
+2. 进入项目目录（例如）：
+   cd /workspace/test_2
+3. 编译：
+   gcc -Wall -Wextra -std=c11 *.c -o his
+4. 运行：
+   ./his
+5. 退出程序：
+   在菜单输入 0 并回车，数据会保存到当前目录的各个 *.txt 文件
+
+常见问题排查：
+- 提示 `gcc: command not found`：先安装编译器（Ubuntu/Debian）`sudo apt update && sudo apt install -y build-essential`
+- 提示权限问题：执行 `chmod +x ./his` 后再运行
+- 程序启动后没数据：确认在项目根目录运行（和 patients.txt、doctors.txt 同级）
+
+七、说明
 这个版本重点保证：
 1. 结构清晰，适合课程设计答辩
 2. 满足大部分题签检查点
 3. 可以继续扩展删除、修改、更复杂权限控制、更多统计功能
 
-七、建议你答辩时强调
+八、建议你答辩时强调
 1. 使用链表保存各类核心实体
 2. 用 txt 文件进行持久化
 3. 通过唯一编号解决重名问题
