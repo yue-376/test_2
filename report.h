@@ -1,11 +1,11 @@
 #ifndef REPORT_H
 #define REPORT_H
 
-#include "data.h"
+#include "models.h"
 
-void report_menu(HospitalDB *db);
-void print_patient_full_record(HospitalDB *db, int patientId);
-void print_doctor_stats(HospitalDB *db, int doctorId);
-void print_management_report(HospitalDB *db);
+void report_menu(Database *db);
+void print_patient_full_record(Database *db, int patientId);
+void print_doctor_stats(Database *db, int doctorId);
+void print_management_report(Database *db);
 
 #endif

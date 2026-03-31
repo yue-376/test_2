@@ -2,7 +2,7 @@
 
 int main(void) {
     Database db;
-    const char *dataDir = "../data";
+    const char *dataDir = ".";
     init_database(&db);
     load_all(&db, dataDir);
     ensure_seed_data(&db);

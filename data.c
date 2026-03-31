@@ -1,4 +1,4 @@
-#include "data.h"
+#include "models.h"
 
 static void append_patient(Database *db, Patient *node) { node->next = NULL; if (!db->patients) db->patients = node; else { Patient *p = db->patients; while (p->next) p = p->next; p->next = node; } }
 static void append_doctor(Database *db, Doctor *node) { node->next = NULL; if (!db->doctors) db->doctors = node; else { Doctor *p = db->doctors; while (p->next) p = p->next; p->next = node; } }
