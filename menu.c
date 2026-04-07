@@ -437,29 +437,149 @@ static void patient_management_menu(Database *db, const char *dataDir) {
 }
 
 static void drug_inout(Database *db, const char *dataDir) {
-    int drugId = read_int("药品编号(输入0返回): ", 0, 1000000);
-    Drug *d = find_drug(db, drugId);
+    Drug *d = NULL;
     DrugLog *l;
-    char op[SMALL_LEN];
-    int qty;
-    if (drugId == 0) { printf("已返回上一步。\n"); return; }
-    if (!d) { printf("药品不存在。\n"); return; }
-    if (!read_line_or_back("操作类型(入库/出库，输入0返回): ", op, sizeof(op))) return;
-    qty = read_int("数量(输入0返回): ", 0, 1000000);
-    if (qty == 0) { printf("已返回上一步。\n"); return; }
-    if (strcmp(op, "出库") == 0 && d->stock < qty) { printf("库存不足。\n"); return; }
+    int drugId = 0, qty = 0;
+    int step = 0;
+    char op[SMALL_LEN], operatorName[NAME_LEN], date[DATE_LEN];
+    while (step < 5) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("药品编号(输入0返回上一步): ", 1, 1000000, &drugId);
+            if (ok) {
+                d = find_drug(db, drugId);
+                if (!d) { printf("药品不存在。\n"); ok = 0; }
+            }
+        } else if (step == 1) {
+            ok = read_line_or_back("操作类型(入库/出库，输入0返回上一步): ", op, sizeof(op));
+            if (ok && strcmp(op, "入库") != 0 && strcmp(op, "出库") != 0) {
+                printf("操作类型仅支持“入库”或“出库”。\n");
+                ok = 0;
+            }
+        } else if (step == 2) {
+            ok = read_int_or_back("数量(输入0返回上一步): ", 1, 1000000, &qty);
+            if (ok && strcmp(op, "出库") == 0 && d->stock < qty) {
+                printf("库存不足。\n");
+                ok = 0;
+            }
+        } else if (step == 3) ok = read_line_or_back("操作人(输入0返回上一步): ", operatorName, sizeof(operatorName));
+        else ok = read_line_or_back("日期(输入0返回上一步): ", date, sizeof(date));
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
+    }
+
     l = (DrugLog*)malloc(sizeof(DrugLog));
     l->id = next_druglog_id(db);
     l->drugId = drugId;
     strcpy(l->operation, op);
     l->quantity = qty;
-    if (!read_line_or_back("操作人(输入0返回): ", l->operatorName, sizeof(l->operatorName))) { free(l); return; }
-    if (!read_line_or_back("日期(输入0返回): ", l->date, sizeof(l->date))) { free(l); return; }
+    strcpy(l->operatorName, operatorName);
+    strcpy(l->date, date);
     if (strcmp(op, "出库") == 0) d->stock -= qty; else d->stock += qty;
     l->next = NULL;
     if (!db->drugLogs) db->drugLogs = l; else { DrugLog *q = db->drugLogs; while (q->next) q = q->next; q->next = l; }
     save_all(db, dataDir);
     printf("操作成功，当前库存=%d\n", d->stock);
+}
+
+static void add_drug(Database *db, const char *dataDir) {
+    Drug *d = (Drug*)malloc(sizeof(Drug));
+    int step = 0;
+    char priceBuf[64], stockBuf[64];
+    d->id = next_drug_id(db);
+    while (step < 7) {
+        int ok = 0;
+        if (step == 0) ok = read_line_or_back("通用名(输入0返回上一步): ", d->genericName, sizeof(d->genericName));
+        else if (step == 1) ok = read_line_or_back("商品名(输入0返回上一步): ", d->brandName, sizeof(d->brandName));
+        else if (step == 2) ok = read_line_or_back("别名(输入0返回上一步): ", d->alias, sizeof(d->alias));
+        else if (step == 3) ok = read_line_or_back("类别(输入0返回上一步): ", d->type, sizeof(d->type));
+        else if (step == 4) ok = read_line_or_back("所属科室(输入0返回上一步): ", d->dept, sizeof(d->dept));
+        else if (step == 5) {
+            ok = read_line_or_back("单价(输入0返回上一步): ", priceBuf, sizeof(priceBuf));
+            if (ok) d->price = atof(priceBuf);
+        } else {
+            ok = read_line_or_back("初始库存(输入0返回上一步): ", stockBuf, sizeof(stockBuf));
+            if (ok) d->stock = atoi(stockBuf);
+        }
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); free(d); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
+    }
+    d->next = NULL;
+    if (!db->drugs) db->drugs = d; else { Drug *q = db->drugs; while (q->next) q = q->next; q->next = d; }
+    save_all(db, dataDir);
+    printf("药品新增成功，药品编号=%d\n", d->id);
+}
+
+static int drug_has_logs(Database *db, int drugId) {
+    DrugLog *l = db->drugLogs;
+    while (l) {
+        if (l->drugId == drugId) return 1;
+        l = l->next;
+    }
+    return 0;
+}
+
+static void delete_drug(Database *db, const char *dataDir) {
+    int step = 0;
+    int drugId = 0;
+    char confirm[16];
+    Drug *prev = NULL, *cur = NULL;
+    while (step < 2) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("要删除的药品编号(输入0返回上一步): ", 1, 1000000, &drugId);
+            if (ok) {
+                prev = NULL;
+                cur = db->drugs;
+                while (cur && cur->id != drugId) {
+                    prev = cur;
+                    cur = cur->next;
+                }
+                if (!cur) { printf("药品不存在。\n"); ok = 0; }
+            }
+        } else {
+            ok = read_line_or_back("确认删除? (y/n，输入0返回上一步): ", confirm, sizeof(confirm));
+            if (ok && !(confirm[0] == 'y' || confirm[0] == 'Y' || confirm[0] == 'n' || confirm[0] == 'N')) {
+                printf("请输入 y 或 n。\n");
+                ok = 0;
+            }
+        }
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
+    }
+
+    if (confirm[0] == 'n' || confirm[0] == 'N') { printf("已取消删除。\n"); return; }
+    if (drug_has_logs(db, drugId)) {
+        printf("删除失败：该药品存在出入库记录，请先处理关联记录。\n");
+        return;
+    }
+    if (prev) prev->next = cur->next; else db->drugs = cur->next;
+    free(cur);
+    save_all(db, dataDir);
+    printf("删除成功。\n");
+}
+
+static void drug_management_menu(Database *db, const char *dataDir) {
+    int choice;
+    while (1) {
+        printf("\n--- 药品管理 ---\n");
+        printf("1. 药品出入库\n");
+        printf("2. 新增药品\n");
+        printf("3. 删除药品\n");
+        printf("0. 返回上级菜单\n");
+        choice = read_int("请选择: ", 0, 3);
+        if (choice == 0) return;
+        if (choice == 1) drug_inout(db, dataDir);
+        else if (choice == 2) add_drug(db, dataDir);
+        else delete_drug(db, dataDir);
+        pause_and_wait();
+    }
 }
 
 static void patient_report(Database *db) {
@@ -527,7 +647,7 @@ void main_menu(Database *db, const char *dataDir) {
         printf("3. 看诊管理\n");
         printf("4. 检查管理\n");
         printf("5. 住院管理\n");
-        printf("6. 药品出入库\n");
+        printf("6. 药品管理\n");
         printf("7. 患者视角查询\n");
         printf("8. 医护视角查询\n");
         printf("9. 管理视角报表\n");
@@ -539,7 +659,7 @@ void main_menu(Database *db, const char *dataDir) {
             case 3: visit_management_menu(db, dataDir); break;
             case 4: exam_management_menu(db, dataDir); break;
             case 5: inpatient_management_menu(db, dataDir); break;
-            case 6: drug_inout(db, dataDir); pause_and_wait(); break;
+            case 6: drug_management_menu(db, dataDir); break;
             case 7: patient_report(db); pause_and_wait(); break;
             case 8: doctor_report(db); pause_and_wait(); break;
             case 9: management_report(db); pause_and_wait(); break;
