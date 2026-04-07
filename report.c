@@ -81,17 +81,22 @@ void print_management_report(Database *db) {
 
 void report_menu(Database *db) {
     int ch;
+    int id;
     while (1) {
         printf("\n===== 报表与统计查询 =====\n");
         printf("1. 患者视角查询\n2. 医护视角查询\n3. 管理视角查询\n0. 返回上一级\n");
         ch = read_int("请选择: ", 0, 3);
         switch (ch) {
             case 1:
-                print_patient_full_record(db, read_int("输入患者病历号: ", 1, 9999999));
+                id = read_int("输入患者病历号(输入0返回): ", 0, 9999999);
+                if (id == 0) { printf("已返回上一步。\n"); break; }
+                print_patient_full_record(db, id);
                 printf("\n按回车继续..."); getchar();
                 break;
             case 2:
-                print_doctor_stats(db, read_int("输入医生工号: ", 1, 9999999));
+                id = read_int("输入医生工号(输入0返回): ", 0, 9999999);
+                if (id == 0) { printf("已返回上一步。\n"); break; }
+                print_doctor_stats(db, id);
                 printf("\n按回车继续..."); getchar();
                 break;
             case 3:
