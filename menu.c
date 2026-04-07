@@ -8,10 +8,25 @@ static int count_drugs(Database *db) { int c=0; Drug *p=db->drugs; while(p){c++;
 static int read_line_or_back(const char *prompt, char *buf, int size) {
     read_line(prompt, buf, size);
     if (strcmp(buf, "0") == 0) {
-        printf("已返回上一步。\n");
         return 0;
     }
     return 1;
+}
+
+static int read_int_or_back(const char *prompt, int min, int max, int *out) {
+    char line[64];
+    char *end;
+    long value;
+    while (1) {
+        read_line(prompt, line, sizeof(line));
+        if (strcmp(line, "0") == 0) return 0;
+        value = strtol(line, &end, 10);
+        if (*line != '\0' && *end == '\0' && value >= min && value <= max) {
+            *out = (int)value;
+            return 1;
+        }
+        printf("输入无效，请输入 %d ~ %d 的整数，或输入0返回上一步。\n", min, max);
+    }
 }
 
 static void list_patients(Database *db) {
@@ -72,12 +87,27 @@ static void delete_patient(Database *db, const char *dataDir) {
 
 static void add_patient(Database *db, const char *dataDir) {
     Patient *p = (Patient*)malloc(sizeof(Patient));
+    int step = 0;
     p->id = next_patient_id(db);
-    if (!read_line_or_back("姓名(输入0返回): ", p->name, sizeof(p->name))) { free(p); return; }
-    if (!read_line_or_back("性别(输入0返回): ", p->gender, sizeof(p->gender))) { free(p); return; }
-    if (!read_line_or_back("出生日期(YYYY-MM-DD，输入0返回): ", p->birth, sizeof(p->birth))) { free(p); return; }
-    if (!read_line_or_back("联系方式(输入0返回): ", p->phone, sizeof(p->phone))) { free(p); return; }
-    if (!read_line_or_back("医保类型(输入0返回): ", p->insurance, sizeof(p->insurance))) { free(p); return; }
+    while (step < 5) {
+        int ok = 0;
+        if (step == 0) ok = read_line_or_back("姓名(输入0返回上一步): ", p->name, sizeof(p->name));
+        else if (step == 1) ok = read_line_or_back("性别(输入0返回上一步): ", p->gender, sizeof(p->gender));
+        else if (step == 2) ok = read_line_or_back("出生日期(YYYY-MM-DD，输入0返回上一步): ", p->birth, sizeof(p->birth));
+        else if (step == 3) ok = read_line_or_back("联系方式(输入0返回上一步): ", p->phone, sizeof(p->phone));
+        else ok = read_line_or_back("医保类型(输入0返回上一步): ", p->insurance, sizeof(p->insurance));
+
+        if (ok) {
+            step++;
+        } else if (step == 0) {
+            printf("已返回上一步。\n");
+            free(p);
+            return;
+        } else {
+            printf("已返回上一项输入。\n");
+            step--;
+        }
+    }
     p->archived = 0;
     p->next = NULL;
     if (!db->patients) db->patients = p; else { Patient *q = db->patients; while (q->next) q = q->next; q->next = p; }
@@ -98,17 +128,25 @@ static int count_patient_regs_same_day(Database *db, int patientId, const char *
 
 static void add_registration(Database *db, const char *dataDir) {
     Registration *r;
-    int patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
-    int doctorId;
+    int patientId = 0, doctorId = 0;
+    int step = 0;
     char dept[SMALL_LEN], date[DATE_LEN], type[SMALL_LEN];
-    if (patientId == 0) { printf("已返回上一步。\n"); return; }
-    doctorId = read_int("医生工号(输入0返回): ", 0, 1000000);
-    if (doctorId == 0) { printf("已返回上一步。\n"); return; }
-    if (!find_patient(db, patientId)) { printf("患者不存在。\n"); return; }
-    if (!find_doctor(db, doctorId)) { printf("医生不存在。\n"); return; }
-    if (!read_line_or_back("科室(输入0返回): ", dept, sizeof(dept))) return;
-    if (!read_line_or_back("挂号日期(YYYY-MM-DD，输入0返回): ", date, sizeof(date))) return;
-    if (!read_line_or_back("挂号类型(普通/专家，输入0返回): ", type, sizeof(type))) return;
+    while (step < 5) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("患者病历号(输入0返回上一步): ", 1, 1000000, &patientId);
+            if (ok && !find_patient(db, patientId)) { printf("患者不存在。\n"); ok = 0; }
+        } else if (step == 1) {
+            ok = read_int_or_back("医生工号(输入0返回上一步): ", 1, 1000000, &doctorId);
+            if (ok && !find_doctor(db, doctorId)) { printf("医生不存在。\n"); ok = 0; }
+        } else if (step == 2) ok = read_line_or_back("科室(输入0返回上一步): ", dept, sizeof(dept));
+        else if (step == 3) ok = read_line_or_back("挂号日期(YYYY-MM-DD，输入0返回上一步): ", date, sizeof(date));
+        else ok = read_line_or_back("挂号类型(普通/专家，输入0返回上一步): ", type, sizeof(type));
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
+    }
     if (count_patient_regs_same_day_dept(db, patientId, date, dept) >= 1) { printf("同一患者同一天同一科室最多挂号1次。\n"); return; }
     if (count_patient_regs_same_day(db, patientId, date) >= 3) { printf("同一患者同一天最多挂号3次。\n"); return; }
     r = (Registration*)malloc(sizeof(Registration));
@@ -159,17 +197,33 @@ static void delete_registration(Database *db, const char *dataDir) {
 }
 
 static void add_visit(Database *db, const char *dataDir) {
-    int regId = read_int("挂号编号(输入0返回): ", 0, 1000000);
+    int regId = 0;
+    int step = 0;
+    char diagnosis[TEXT_LEN], examItems[TEXT_LEN], prescription[TEXT_LEN];
     Registration *r = find_registration(db, regId);
     Visit *v;
-    if (regId == 0) { printf("已返回上一步。\n"); return; }
-    if (!r) { printf("挂号记录不存在。\n"); return; }
+    while (step < 4) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("挂号编号(输入0返回上一步): ", 1, 1000000, &regId);
+            if (ok) {
+                r = find_registration(db, regId);
+                if (!r) { printf("挂号记录不存在。\n"); ok = 0; }
+            }
+        } else if (step == 1) ok = read_line_or_back("诊断结果(输入0返回上一步): ", diagnosis, sizeof(diagnosis));
+        else if (step == 2) ok = read_line_or_back("检查项目(输入0返回上一步): ", examItems, sizeof(examItems));
+        else ok = read_line_or_back("处方信息(输入0返回上一步): ", prescription, sizeof(prescription));
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
+    }
     v = (Visit*)malloc(sizeof(Visit));
     v->id = next_visit_id(db);
     v->regId = regId;
-    read_line("诊断结果: ", v->diagnosis, sizeof(v->diagnosis));
-    read_line("检查项目: ", v->examItems, sizeof(v->examItems));
-    read_line("处方信息: ", v->prescription, sizeof(v->prescription));
+    strcpy(v->diagnosis, diagnosis);
+    strcpy(v->examItems, examItems);
+    strcpy(v->prescription, prescription);
     v->next = NULL;
     if (!db->visits) db->visits = v; else { Visit *q = db->visits; while (q->next) q = q->next; q->next = v; }
     strcpy(r->status, "已就诊");
@@ -199,21 +253,29 @@ static void delete_visit(Database *db, const char *dataDir) {
 
 static void add_exam(Database *db, const char *dataDir) {
     Exam *e = (Exam*)malloc(sizeof(Exam));
+    int step = 0;
+    char feeBuf[64];
     e->id = next_exam_id(db);
-    e->patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
-    if (e->patientId == 0) { printf("已返回上一步。\n"); free(e); return; }
-    e->doctorId = read_int("医生工号(输入0返回): ", 0, 1000000);
-    if (e->doctorId == 0) { printf("已返回上一步。\n"); free(e); return; }
-    if (!find_patient(db, e->patientId) || !find_doctor(db, e->doctorId)) { printf("患者或医生不存在。\n"); free(e); return; }
-    if (!read_line_or_back("检查编码(输入0返回): ", e->code, sizeof(e->code))) { free(e); return; }
-    if (!read_line_or_back("检查项目名称(输入0返回): ", e->itemName, sizeof(e->itemName))) { free(e); return; }
-    if (!read_line_or_back("执行时间(输入0返回): ", e->execTime, sizeof(e->execTime))) { free(e); return; }
-    {
-        char feeBuf[64];
-        if (!read_line_or_back("检查费用(输入0返回): ", feeBuf, sizeof(feeBuf))) { free(e); return; }
-        e->fee = atof(feeBuf);
+    while (step < 7) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("患者病历号(输入0返回上一步): ", 1, 1000000, &e->patientId);
+            if (ok && !find_patient(db, e->patientId)) { printf("患者不存在。\n"); ok = 0; }
+        } else if (step == 1) {
+            ok = read_int_or_back("医生工号(输入0返回上一步): ", 1, 1000000, &e->doctorId);
+            if (ok && !find_doctor(db, e->doctorId)) { printf("医生不存在。\n"); ok = 0; }
+        } else if (step == 2) ok = read_line_or_back("检查编码(输入0返回上一步): ", e->code, sizeof(e->code));
+        else if (step == 3) ok = read_line_or_back("检查项目名称(输入0返回上一步): ", e->itemName, sizeof(e->itemName));
+        else if (step == 4) ok = read_line_or_back("执行时间(输入0返回上一步): ", e->execTime, sizeof(e->execTime));
+        else if (step == 5) {
+            ok = read_line_or_back("检查费用(输入0返回上一步): ", feeBuf, sizeof(feeBuf));
+            if (ok) e->fee = atof(feeBuf);
+        } else ok = read_line_or_back("检查结果(输入0返回上一步): ", e->result, sizeof(e->result));
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); free(e); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
     }
-    if (!read_line_or_back("检查结果(输入0返回): ", e->result, sizeof(e->result))) { free(e); return; }
     e->next = NULL;
     if (!db->exams) db->exams = e; else { Exam *q = db->exams; while (q->next) q = q->next; q->next = e; }
     save_all(db, dataDir);
@@ -243,21 +305,27 @@ static void delete_exam(Database *db, const char *dataDir) {
 static void add_inpatient(Database *db, const char *dataDir) {
     Inpatient *ip = (Inpatient*)malloc(sizeof(Inpatient));
     Ward *w;
+    int step = 0;
+    char buf[64];
     ip->id = next_inpatient_id(db);
-    ip->patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
-    if (ip->patientId == 0) { printf("已返回上一步。\n"); free(ip); return; }
-    ip->wardId = read_int("病房编号(输入0返回): ", 0, 1000000);
-    if (ip->wardId == 0) { printf("已返回上一步。\n"); free(ip); return; }
-    ip->bedNo = read_int("床位号(输入0返回): ", 0, 1000);
-    if (ip->bedNo == 0) { printf("已返回上一步。\n"); free(ip); return; }
-    if (!read_line_or_back("入院时间(输入0返回): ", ip->admitDate, sizeof(ip->admitDate))) { free(ip); return; }
-    if (!read_line_or_back("预计出院时间(输入0返回): ", ip->expectedDischarge, sizeof(ip->expectedDischarge))) { free(ip); return; }
-    {
-        char buf[64];
-        if (!read_line_or_back("预估住院费用(输入0返回): ", buf, sizeof(buf))) { free(ip); return; }
-        ip->totalCost = atof(buf);
+    while (step < 6) {
+        int ok = 0;
+        if (step == 0) {
+            ok = read_int_or_back("患者病历号(输入0返回上一步): ", 1, 1000000, &ip->patientId);
+            if (ok && !find_patient(db, ip->patientId)) { printf("患者不存在。\n"); ok = 0; }
+        } else if (step == 1) ok = read_int_or_back("病房编号(输入0返回上一步): ", 1, 1000000, &ip->wardId);
+        else if (step == 2) ok = read_int_or_back("床位号(输入0返回上一步): ", 1, 1000, &ip->bedNo);
+        else if (step == 3) ok = read_line_or_back("入院时间(输入0返回上一步): ", ip->admitDate, sizeof(ip->admitDate));
+        else if (step == 4) ok = read_line_or_back("预计出院时间(输入0返回上一步): ", ip->expectedDischarge, sizeof(ip->expectedDischarge));
+        else {
+            ok = read_line_or_back("预估住院费用(输入0返回上一步): ", buf, sizeof(buf));
+            if (ok) ip->totalCost = atof(buf);
+        }
+
+        if (ok) step++;
+        else if (step == 0) { printf("已返回上一步。\n"); free(ip); return; }
+        else { printf("已返回上一项输入。\n"); step--; }
     }
-    if (!find_patient(db, ip->patientId)) { printf("患者不存在。\n"); free(ip); return; }
     w = find_ward(db, ip->wardId);
     if (!w) { printf("病房不存在。\n"); free(ip); return; }
     if (w->occupiedBeds + w->maintenanceBeds >= w->bedCount) { printf("病房没有空闲床位。\n"); free(ip); return; }
