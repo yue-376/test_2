@@ -514,70 +514,17 @@ static void add_drug(Database *db, const char *dataDir) {
     printf("药品新增成功，药品编号=%d\n", d->id);
 }
 
-static int drug_has_logs(Database *db, int drugId) {
-    DrugLog *l = db->drugLogs;
-    while (l) {
-        if (l->drugId == drugId) return 1;
-        l = l->next;
-    }
-    return 0;
-}
-
-static void delete_drug(Database *db, const char *dataDir) {
-    int step = 0;
-    int drugId = 0;
-    char confirm[16];
-    Drug *prev = NULL, *cur = NULL;
-    while (step < 2) {
-        int ok = 0;
-        if (step == 0) {
-            ok = read_int_or_back("要删除的药品编号(输入0返回上一步): ", 1, 1000000, &drugId);
-            if (ok) {
-                prev = NULL;
-                cur = db->drugs;
-                while (cur && cur->id != drugId) {
-                    prev = cur;
-                    cur = cur->next;
-                }
-                if (!cur) { printf("药品不存在。\n"); ok = 0; }
-            }
-        } else {
-            ok = read_line_or_back("确认删除? (y/n，输入0返回上一步): ", confirm, sizeof(confirm));
-            if (ok && !(confirm[0] == 'y' || confirm[0] == 'Y' || confirm[0] == 'n' || confirm[0] == 'N')) {
-                printf("请输入 y 或 n。\n");
-                ok = 0;
-            }
-        }
-
-        if (ok) step++;
-        else if (step == 0) { printf("已返回上一步。\n"); return; }
-        else { printf("已返回上一项输入。\n"); step--; }
-    }
-
-    if (confirm[0] == 'n' || confirm[0] == 'N') { printf("已取消删除。\n"); return; }
-    if (drug_has_logs(db, drugId)) {
-        printf("删除失败：该药品存在出入库记录，请先处理关联记录。\n");
-        return;
-    }
-    if (prev) prev->next = cur->next; else db->drugs = cur->next;
-    free(cur);
-    save_all(db, dataDir);
-    printf("删除成功。\n");
-}
-
 static void drug_management_menu(Database *db, const char *dataDir) {
     int choice;
     while (1) {
         printf("\n--- 药品管理 ---\n");
         printf("1. 药品出入库\n");
         printf("2. 新增药品\n");
-        printf("3. 删除药品\n");
         printf("0. 返回上级菜单\n");
-        choice = read_int("请选择: ", 0, 3);
+        choice = read_int("请选择: ", 0, 2);
         if (choice == 0) return;
         if (choice == 1) drug_inout(db, dataDir);
-        else if (choice == 2) add_drug(db, dataDir);
-        else delete_drug(db, dataDir);
+        else add_drug(db, dataDir);
         pause_and_wait();
     }
 }
