@@ -90,9 +90,12 @@ static int count_patient_regs_same_day(Database *db, int patientId, const char *
 
 static void add_registration(Database *db, const char *dataDir) {
     Registration *r;
-    int patientId = read_int("患者病历号: ", 1, 1000000);
-    int doctorId = read_int("医生工号: ", 1, 1000000);
+    int patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
+    int doctorId;
     char dept[SMALL_LEN], date[DATE_LEN], type[SMALL_LEN];
+    if (patientId == 0) { printf("已返回上一步。\n"); return; }
+    doctorId = read_int("医生工号(输入0返回): ", 0, 1000000);
+    if (doctorId == 0) { printf("已返回上一步。\n"); return; }
     if (!find_patient(db, patientId)) { printf("患者不存在。\n"); return; }
     if (!find_doctor(db, doctorId)) { printf("医生不存在。\n"); return; }
     read_line("科室: ", dept, sizeof(dept));
@@ -148,9 +151,10 @@ static void delete_registration(Database *db, const char *dataDir) {
 }
 
 static void add_visit(Database *db, const char *dataDir) {
-    int regId = read_int("挂号编号: ", 1, 1000000);
+    int regId = read_int("挂号编号(输入0返回): ", 0, 1000000);
     Registration *r = find_registration(db, regId);
     Visit *v;
+    if (regId == 0) { printf("已返回上一步。\n"); return; }
     if (!r) { printf("挂号记录不存在。\n"); return; }
     v = (Visit*)malloc(sizeof(Visit));
     v->id = next_visit_id(db);
@@ -188,8 +192,10 @@ static void delete_visit(Database *db, const char *dataDir) {
 static void add_exam(Database *db, const char *dataDir) {
     Exam *e = (Exam*)malloc(sizeof(Exam));
     e->id = next_exam_id(db);
-    e->patientId = read_int("患者病历号: ", 1, 1000000);
-    e->doctorId = read_int("医生工号: ", 1, 1000000);
+    e->patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
+    if (e->patientId == 0) { printf("已返回上一步。\n"); free(e); return; }
+    e->doctorId = read_int("医生工号(输入0返回): ", 0, 1000000);
+    if (e->doctorId == 0) { printf("已返回上一步。\n"); free(e); return; }
     if (!find_patient(db, e->patientId) || !find_doctor(db, e->doctorId)) { printf("患者或医生不存在。\n"); free(e); return; }
     read_line("检查编码: ", e->code, sizeof(e->code));
     read_line("检查项目名称: ", e->itemName, sizeof(e->itemName));
@@ -226,9 +232,12 @@ static void add_inpatient(Database *db, const char *dataDir) {
     Inpatient *ip = (Inpatient*)malloc(sizeof(Inpatient));
     Ward *w;
     ip->id = next_inpatient_id(db);
-    ip->patientId = read_int("患者病历号: ", 1, 1000000);
-    ip->wardId = read_int("病房编号: ", 1, 1000000);
-    ip->bedNo = read_int("床位号: ", 1, 1000);
+    ip->patientId = read_int("患者病历号(输入0返回): ", 0, 1000000);
+    if (ip->patientId == 0) { printf("已返回上一步。\n"); free(ip); return; }
+    ip->wardId = read_int("病房编号(输入0返回): ", 0, 1000000);
+    if (ip->wardId == 0) { printf("已返回上一步。\n"); free(ip); return; }
+    ip->bedNo = read_int("床位号(输入0返回): ", 0, 1000);
+    if (ip->bedNo == 0) { printf("已返回上一步。\n"); free(ip); return; }
     read_line("入院时间: ", ip->admitDate, sizeof(ip->admitDate));
     read_line("预计出院时间: ", ip->expectedDischarge, sizeof(ip->expectedDischarge));
     { char buf[64]; read_line("预估住院费用: ", buf, sizeof(buf)); ip->totalCost = atof(buf); }
@@ -344,14 +353,16 @@ static void patient_management_menu(Database *db, const char *dataDir) {
 }
 
 static void drug_inout(Database *db, const char *dataDir) {
-    int drugId = read_int("药品编号: ", 1, 1000000);
+    int drugId = read_int("药品编号(输入0返回): ", 0, 1000000);
     Drug *d = find_drug(db, drugId);
     DrugLog *l;
     char op[SMALL_LEN];
     int qty;
+    if (drugId == 0) { printf("已返回上一步。\n"); return; }
     if (!d) { printf("药品不存在。\n"); return; }
     read_line("操作类型(入库/出库): ", op, sizeof(op));
-    qty = read_int("数量: ", 1, 1000000);
+    qty = read_int("数量(输入0返回): ", 0, 1000000);
+    if (qty == 0) { printf("已返回上一步。\n"); return; }
     if (strcmp(op, "出库") == 0 && d->stock < qty) { printf("库存不足。\n"); return; }
     if (strcmp(op, "出库") == 0) d->stock -= qty; else d->stock += qty;
     l = (DrugLog*)malloc(sizeof(DrugLog));
@@ -368,11 +379,12 @@ static void drug_inout(Database *db, const char *dataDir) {
 }
 
 static void patient_report(Database *db) {
-    int pid = read_int("输入患者病历号: ", 1, 1000000);
+    int pid = read_int("输入患者病历号(输入0返回): ", 0, 1000000);
     Patient *p = find_patient(db, pid);
     Registration *r;
     Exam *e;
     Inpatient *ip;
+    if (pid == 0) { printf("已返回上一步。\n"); return; }
     if (!p) { printf("患者不存在。\n"); return; }
     printf("\n患者: %s(%d) %s %s %s %s\n", p->name, p->id, p->gender, p->birth, p->phone, p->insurance);
     printf("挂号记录:\n");
@@ -384,9 +396,10 @@ static void patient_report(Database *db) {
 }
 
 static void doctor_report(Database *db) {
-    int did = read_int("输入医生工号: ", 1, 1000000);
+    int did = read_int("输入医生工号(输入0返回): ", 0, 1000000);
     Doctor *d = find_doctor(db, did);
     Registration *r; int count = 0;
+    if (did == 0) { printf("已返回上一步。\n"); return; }
     if (!d) { printf("医生不存在。\n"); return; }
     printf("\n医生: %s(%d) %s %s\n", d->name, d->id, d->dept, d->title);
     for (r = db->registrations; r; r = r->next) {
