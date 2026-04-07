@@ -27,10 +27,11 @@ static int patient_has_related_records(Database *db, int patientId) {
 }
 
 static void delete_patient(Database *db, const char *dataDir) {
-    int id = read_int("要删除的患者病历号: ", 1, 1000000);
+    int id = read_int("要删除的患者病历号(输入0返回): ", 0, 1000000);
     Patient *prev = NULL;
     Patient *cur = db->patients;
     char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
 
     while (cur && cur->id != id) {
         prev = cur;
@@ -123,10 +124,11 @@ static int registration_has_visit(Database *db, int regId) {
 }
 
 static void delete_registration(Database *db, const char *dataDir) {
-    int id = read_int("要删除的挂号编号: ", 1, 1000000);
+    int id = read_int("要删除的挂号编号(输入0返回): ", 0, 1000000);
     Registration *prev = NULL;
     Registration *cur = db->registrations;
     char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
     while (cur && cur->id != id) {
         prev = cur;
         cur = cur->next;
@@ -164,10 +166,11 @@ static void add_visit(Database *db, const char *dataDir) {
 }
 
 static void delete_visit(Database *db, const char *dataDir) {
-    int id = read_int("要删除的看诊编号: ", 1, 1000000);
+    int id = read_int("要删除的看诊编号(输入0返回): ", 0, 1000000);
     Visit *prev = NULL;
     Visit *cur = db->visits;
     char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
     while (cur && cur->id != id) {
         prev = cur;
         cur = cur->next;
@@ -200,10 +203,11 @@ static void add_exam(Database *db, const char *dataDir) {
 }
 
 static void delete_exam(Database *db, const char *dataDir) {
-    int id = read_int("要删除的检查编号: ", 1, 1000000);
+    int id = read_int("要删除的检查编号(输入0返回): ", 0, 1000000);
     Exam *prev = NULL;
     Exam *cur = db->exams;
     char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
     while (cur && cur->id != id) {
         prev = cur;
         cur = cur->next;
@@ -240,11 +244,12 @@ static void add_inpatient(Database *db, const char *dataDir) {
 }
 
 static void delete_inpatient(Database *db, const char *dataDir) {
-    int id = read_int("要删除的住院编号: ", 1, 1000000);
+    int id = read_int("要删除的住院编号(输入0返回): ", 0, 1000000);
     Inpatient *prev = NULL;
     Inpatient *cur = db->inpatients;
     Ward *w;
     char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
     while (cur && cur->id != id) {
         prev = cur;
         cur = cur->next;
