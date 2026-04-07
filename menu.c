@@ -172,6 +172,15 @@ static int registration_has_visit(Database *db, int regId) {
     return 0;
 }
 
+static int drug_has_logs(Database *db, int drugId) {
+    DrugLog *l = db->drugLogs;
+    while (l) {
+        if (l->drugId == drugId) return 1;
+        l = l->next;
+    }
+    return 0;
+}
+
 static void delete_registration(Database *db, const char *dataDir) {
     int id = read_int("要删除的挂号编号(输入0返回): ", 0, 1000000);
     Registration *prev = NULL;
@@ -235,6 +244,8 @@ static void delete_visit(Database *db, const char *dataDir) {
     int id = read_int("要删除的看诊编号(输入0返回): ", 0, 1000000);
     Visit *prev = NULL;
     Visit *cur = db->visits;
+    Registration *r;
+    Visit *v;
     char confirm[16];
     if (id == 0) { printf("已返回上一步。\n"); return; }
     while (cur && cur->id != id) {
@@ -245,8 +256,19 @@ static void delete_visit(Database *db, const char *dataDir) {
     printf("确认删除看诊[%d] (挂号%d) ? (y/n): ", cur->id, cur->regId);
     read_line(NULL, confirm, sizeof(confirm));
     if (!(confirm[0] == 'y' || confirm[0] == 'Y')) { printf("已取消删除。\n"); return; }
+    r = find_registration(db, cur->regId);
     if (prev) prev->next = cur->next; else db->visits = cur->next;
     free(cur);
+    if (r) {
+        int hasAnotherVisit = 0;
+        for (v = db->visits; v; v = v->next) {
+            if (v->regId == r->id) {
+                hasAnotherVisit = 1;
+                break;
+            }
+        }
+        if (!hasAnotherVisit) strcpy(r->status, "未就诊");
+    }
     save_all(db, dataDir);
     printf("删除成功。\n");
 }
@@ -514,17 +536,43 @@ static void add_drug(Database *db, const char *dataDir) {
     printf("药品新增成功，药品编号=%d\n", d->id);
 }
 
+static void delete_drug(Database *db, const char *dataDir) {
+    int id = read_int("要删除的药品编号(输入0返回): ", 0, 1000000);
+    Drug *prev = NULL;
+    Drug *cur = db->drugs;
+    char confirm[16];
+    if (id == 0) { printf("已返回上一步。\n"); return; }
+    while (cur && cur->id != id) {
+        prev = cur;
+        cur = cur->next;
+    }
+    if (!cur) { printf("药品不存在。\n"); return; }
+    if (drug_has_logs(db, id)) {
+        printf("删除失败：该药品已有出入库记录，无法直接删除。\n");
+        return;
+    }
+    printf("确认删除药品[%d] %s/%s ? (y/n): ", cur->id, cur->genericName, cur->brandName);
+    read_line(NULL, confirm, sizeof(confirm));
+    if (!(confirm[0] == 'y' || confirm[0] == 'Y')) { printf("已取消删除。\n"); return; }
+    if (prev) prev->next = cur->next; else db->drugs = cur->next;
+    free(cur);
+    save_all(db, dataDir);
+    printf("删除成功。\n");
+}
+
 static void drug_management_menu(Database *db, const char *dataDir) {
     int choice;
     while (1) {
         printf("\n--- 药品管理 ---\n");
         printf("1. 药品出入库\n");
         printf("2. 新增药品\n");
+        printf("3. 删除药品\n");
         printf("0. 返回上级菜单\n");
-        choice = read_int("请选择: ", 0, 2);
+        choice = read_int("请选择: ", 0, 3);
         if (choice == 0) return;
         if (choice == 1) drug_inout(db, dataDir);
-        else add_drug(db, dataDir);
+        else if (choice == 2) add_drug(db, dataDir);
+        else delete_drug(db, dataDir);
         pause_and_wait();
     }
 }
