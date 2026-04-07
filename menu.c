@@ -321,6 +321,23 @@ static void inpatient_management_menu(Database *db, const char *dataDir) {
     }
 }
 
+static void patient_management_menu(Database *db, const char *dataDir) {
+    int choice;
+    while (1) {
+        printf("\n--- 患者管理 ---\n");
+        printf("1. 查看患者列表\n");
+        printf("2. 新增患者\n");
+        printf("3. 删除患者\n");
+        printf("0. 返回上级菜单\n");
+        choice = read_int("请选择: ", 0, 3);
+        if (choice == 0) return;
+        if (choice == 1) list_patients(db);
+        else if (choice == 2) add_patient(db, dataDir);
+        else delete_patient(db, dataDir);
+        pause_and_wait();
+    }
+}
+
 static void drug_inout(Database *db, const char *dataDir) {
     int drugId = read_int("药品编号: ", 1, 1000000);
     Drug *d = find_drug(db, drugId);
@@ -403,31 +420,27 @@ void main_menu(Database *db, const char *dataDir) {
         printf("\n==============================\n");
         printf("  医疗综合管理系统 HIS\n");
         printf("==============================\n");
-        printf("1. 查看患者列表\n");
-        printf("2. 新增患者\n");
-        printf("3. 删除患者\n");
-        printf("4. 挂号管理\n");
-        printf("5. 看诊管理\n");
-        printf("6. 检查管理\n");
-        printf("7. 住院管理\n");
-        printf("8. 药品出入库\n");
-        printf("9. 患者视角查询\n");
-        printf("10. 医护视角查询\n");
-        printf("11. 管理视角报表\n");
+        printf("1. 患者管理\n");
+        printf("2. 挂号管理\n");
+        printf("3. 看诊管理\n");
+        printf("4. 检查管理\n");
+        printf("5. 住院管理\n");
+        printf("6. 药品出入库\n");
+        printf("7. 患者视角查询\n");
+        printf("8. 医护视角查询\n");
+        printf("9. 管理视角报表\n");
         printf("0. 保存并退出\n");
-        choice = read_int("请选择: ", 0, 11);
+        choice = read_int("请选择: ", 0, 9);
         switch (choice) {
-            case 1: list_patients(db); pause_and_wait(); break;
-            case 2: add_patient(db, dataDir); pause_and_wait(); break;
-            case 3: delete_patient(db, dataDir); pause_and_wait(); break;
-            case 4: registration_management_menu(db, dataDir); break;
-            case 5: visit_management_menu(db, dataDir); break;
-            case 6: exam_management_menu(db, dataDir); break;
-            case 7: inpatient_management_menu(db, dataDir); break;
-            case 8: drug_inout(db, dataDir); pause_and_wait(); break;
-            case 9: patient_report(db); pause_and_wait(); break;
-            case 10: doctor_report(db); pause_and_wait(); break;
-            case 11: management_report(db); pause_and_wait(); break;
+            case 1: patient_management_menu(db, dataDir); break;
+            case 2: registration_management_menu(db, dataDir); break;
+            case 3: visit_management_menu(db, dataDir); break;
+            case 4: exam_management_menu(db, dataDir); break;
+            case 5: inpatient_management_menu(db, dataDir); break;
+            case 6: drug_inout(db, dataDir); pause_and_wait(); break;
+            case 7: patient_report(db); pause_and_wait(); break;
+            case 8: doctor_report(db); pause_and_wait(); break;
+            case 9: management_report(db); pause_and_wait(); break;
             case 0: save_all(db, dataDir); printf("数据已保存。\n"); return;
         }
     }
